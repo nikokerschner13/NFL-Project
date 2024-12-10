@@ -1,6 +1,5 @@
 ---
-title: "NFL Project"
-
+date: "11/15/2021"
 output: html_document
 ---
 
@@ -146,5 +145,44 @@ bad_field_goal_table<- PlotXTabs(field_goal_redzone, xwhich= field_goal_class, y
 
 This visualization shows that there are over 100 field goals that are taken in the redzone that our model classifies as bad. We classify bad field goals as ones where the WPA drops after the field goal.
 
+```{r}
+x <- pbp_2017_2021 %>% 
+  filter(pbp_2017_2021$play_type == "punt") 
 
+
+y <- x %>% 
+  filter(x$yardline_100 <70)
+plot(y$wpa, xlab = 'Number of Punts', ylab = 'Win % Added')
+
+plot(x$wpa, xlab = 'Number of Punts Total', ylab = 'Win % Added')
+
+
+
+better <- y %>% 
+  filter(wpa > .01)
+count(better)
+
+worse<- y %>% 
+  filter(wpa < -.01)
+count(worse)
+```
+
+```{r}
+
+
+
+```
+
+
+
+```{r}
+
+great <- y %>% 
+  filter(wpa > .2)
+
+
+plot(great$wpa, xlab = 'Number of Punts', ylab = 'Win % Added')
+
+#31 out of 37 observations occur in overtime
+```
 
