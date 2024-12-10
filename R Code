@@ -1,0 +1,150 @@
+---
+title: "NFL Project"
+
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(nflfastR) # Load nflfastR
+library(tidyverse) # Load tidyverse
+library(ggplot2) # Load ggplot2
+library(ggdark) # Load ggdark
+library(ggimage) # Load ggimage
+library(GGally) # Load GGally
+library(ggrepel) # Load ggrepel
+library(dplyr)
+library("FSA")
+library("tidyverse")
+library("readxl")
+library("ggplot2")
+library("janitor")
+library("CGPfunctions")
+#library("xlsx")
+source("pbp_functions.r") # Load functions to use
+load("pbp_2017_2021.rda")
+```
+
+```{r}
+game_outcomes<- pbp_2017_2021%>%
+  filter(play_type_nfl=="END_GAME")
+
+game_outcomes$winning_team<- NA
+
+
+for (i in 1:nrow(game_outcomes)){
+game_outcomes$winning_team[i]<- 
+  if_else(
+    game_outcomes$result[i]>0,
+    game_outcomes$home_team[i],
+  if_else(
+    game_outcomes$result[i]<0,
+    game_outcomes$away_team[i],
+    "tie"
+  )
+)
+}
+
+game_outcomes_join<-game_outcomes%>%
+  select(game_id,winning_team)
+head(game_outcomes_join)
+
+pbp_2017_2021<- left_join(pbp_2017_2021,game_outcomes_join)
+
+pbp_2017_2021$first_down_binary<- ifelse(
+  pbp_2017_2021$first_down_pass+pbp_2017_2021$first_down_rush==1,
+  "yes",
+  "no"
+)
+```
+
+```{r}
+fourth_down_plays <- filter(pbp_2017_2021, down == 4) %>%
+  filter(play_type != "no_play") %>%
+  filter(!is.na(play_type))
+```
+
+```{r}
+ggplot(data = fourth_down_plays, aes(x = yardline_100, fill = play_type)) +
+  geom_bar() +
+  scale_x_binned()
+```
+
+From this visualization, we can immediately infer that teams tend to overwhelmingly punt when faced with fourth down situations from beyond the 40 yard line. Within 40 yards of the goal line, the disparity between decisions is not as wide, but teams still generally attempt field goals when presented with these situations. This visualization does not take into account distance from a first down, but in general, it seems that teams across the league are not taking as many opportunities to go for it on fourth down as they should. Specifically, opportunities for value may be highest between 40 and 60 yards as well as within 10 yards.   
+
+```{r}
+ggplot(data = mutate(fourth_down_plays, play_type = ifelse(play_type == "pass" | play_type == "run", "Go For It", play_type))
+                     , aes(x = yardline_100, y = ydstogo, color = play_type)) +
+  geom_point()
+```
+
+From this visualization, we see that with one yard to go, teams will generally elect to go for it. Interestingly, the team's field position did not seem to greatly impact this decision-making granted the team was not pressed too far back into its own territory. However, as one might expect, this trend decreases as the yards to go increase. Again, there may be value being lost by punting around the 50 yard line or kicking field goals near or at the goal line.  
+
+```{r}
+fourth_down_plays<- fourth_down_plays %>%
+  mutate(went_for_it = ifelse(play_type == "pass" | play_type == "run", 1, 0))
+```
+
+```{r}
+fourth_down_went_for_it <- fourth_down_plays %>%
+  filter(went_for_it == 1) %>%
+  select(play_id, down, ydstogo, went_for_it, fourth_down_converted, fourth_down_failed, yardline_100)
+```
+
+```{r}
+ggplot(data = fourth_down_went_for_it, aes(x = yardline_100,
+                                           fill = as.factor(fourth_down_converted))) +
+  geom_bar() +
+  scale_x_binned()
+```
+
+From this visualization, we see that fourth downs are generally converted at a fairly high rate regardless of field position. This implies that there are many situations where going for it on fourth down may not be as risky as it may seem, and that often the reward may outweigh the risk in these situations.
+
+```{r}
+second_and_short <- pbp_2017_2021%>%
+  filter(down ==2) %>%
+  filter(ydstogo<=3) %>%
+  filter(!is.na(play_type))
+
+second_down_heat_map<- second_and_short%>%
+  filter(play_type=="run"|play_type=="pass")%>%
+  ggplot(aes(x=yardline_100, y= play_type, fill=yards_gained))+
+  geom_tile()+
+    scale_fill_gradient(low = "blue",  # Set gradient colors
+                       high = "red")+
+  scale_x_binned()
+second_down_heat_map
+```
+
+This visualization shows that passing, especially with the ball deep in your territory on 3rd down tends to yield higher yardage. This means that it might be better to be more aggressive deep in one's own territory which is almost counterintuitive
+
+```{r}
+field_goal_redzone <- pbp_2017_2021%>%
+  filter(yardline_100<=20)%>%
+  filter(play_type=="field_goal")
+
+field_goal_redzone$field_goal_class<- ifelse(field_goal_redzone$wpa>0,
+                                           "good",
+                                           "bad")
+
+field_goal_redzone_losing_team<- field_goal_redzone%>%
+  ggplot(
+    aes(x=result,y=wpa, color=as.factor(field_goal_result))
+  )+
+  geom_point()
+field_goal_redzone_losing_team
+```
+
+This visualization shows that most field goals are not dramatically important for winning percentage as they rarely increase WPA by 5% or more. Interestingly two of the three worst field goals were still makes
+
+```{r}
+bad_field_goal_table<- PlotXTabs(field_goal_redzone, xwhich= field_goal_class, ywhich= field_goal_result)
+```
+
+This visualization shows that there are over 100 field goals that are taken in the redzone that our model classifies as bad. We classify bad field goals as ones where the WPA drops after the field goal.
+
+
+
